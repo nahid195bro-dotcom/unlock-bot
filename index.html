@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Unlock</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+<style>
+:root{--bg:#0e1320;--bg2:#141b2e;--card:#182036;--line:#26304d;--text:#f2f4fb;--mute:#8f9ab8;--amber:#ffc857;--mint:#6ee7b7}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{background:radial-gradient(120% 60% at 50% -10%,#1d2848 0%,var(--bg) 60%) fixed;color:var(--text);
+font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans Bengali",sans-serif;
+padding:calc(28px + env(safe-area-inset-top)) 18px calc(36px + env(safe-area-inset-bottom));min-height:100vh}
+main{max-width:480px;margin:0 auto}
+h1{font-size:30px;line-height:1.15;margin:0 0 8px;font-weight:750;letter-spacing:-.02em}
+.sub{color:var(--mute);margin:0 0 26px;max-width:32ch}
+.card{background:linear-gradient(180deg,var(--card),var(--bg2));border:1px solid var(--line);border-radius:20px;padding:16px;margin-bottom:14px}
+.top{display:flex;gap:14px;align-items:center;margin-bottom:16px}
+.ico{flex:none;width:48px;height:48px;border-radius:14px;background:#222c4a;display:grid;place-items:center;font-size:24px}
+.card.open .ico{background:#183a33}
+.info{min-width:0;flex:1}
+.info h2{font-size:17px;margin:0;font-weight:650;overflow-wrap:anywhere}
+.info p{margin:2px 0 0;font-size:14px;color:var(--mute)}
+.card.open .info p{color:var(--mint)}
+.bar{display:flex;gap:5px;margin-bottom:16px}
+.bar i{flex:1;height:6px;border-radius:3px;background:#2a3556;transition:background .3s}
+.bar i.on{background:var(--amber)}
+.card.open .bar i{background:var(--mint)}
+button{display:block;width:100%;border:0;border-radius:14px;padding:14px;font:650 16px inherit;font-family:inherit;
+background:var(--amber);color:#2a1d00;cursor:pointer;transition:transform .12s,opacity .2s}
+button:active{transform:scale(.98)}
+button:disabled{opacity:.55}
+.card.open button{background:var(--mint);color:#06281c}
+button:focus-visible{outline:2px solid #fff;outline-offset:3px}
+.skel{height:150px;border-radius:20px;background:linear-gradient(90deg,#182036,#202a47,#182036);background-size:200% 100%;animation:sh 1.4s infinite;margin-bottom:14px}
+@keyframes sh{to{background-position:-200% 0}}
+.msg{text-align:center;color:var(--mute);padding:48px 12px}
+.foot{text-align:center;color:var(--mute);font-size:13px;margin-top:22px}
+@media (prefers-reduced-motion:reduce){.skel{animation:none}button,.bar i{transition:none}}
+</style>
+</head>
+<body>
+<main>
+  <h1 id="hi">Welcome</h1>
+  <p class="sub">Watch a few short ads and each link opens for you.</p>
+  <div id="list"><div class="skel"></div><div class="skel"></div></div>
+  <p class="foot">Ads keep this free for everyone.</p>
+</main>
+<script>
+const tg=window.Telegram.WebApp;tg.ready();tg.expand();
+try{tg.setHeaderColor("#0e1320");tg.setBackgroundColor("#0e1320")}catch(e){}
+const u=tg.initDataUnsafe&&tg.initDataUnsafe.user;
+if(u&&u.first_name)document.getElementById("hi").textContent="Hi, "+u.first_name;
+let AdC=null;
+const post=(url,b)=>fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({init:tg.initData,...b})});
+const icon=t=>{t=t.toLowerCase();return /video|setup|tutorial/.test(t)?"🎬":/give|gift|win/.test(t)?"🎁":/download|panel|file/.test(t)?"📥":"🔗"};
+async function load(){
+  let r;try{r=await post("/api/items",{})}catch(e){list.innerHTML='<p class="msg">No connection. Pull down to retry.</p>';return}
+  if(!r.ok){list.innerHTML='<p class="msg">Please open this app from the bot.</p>';return}
+  const items=await r.json();
+  if(!items.length){list.innerHTML='<p class="msg">Nothing here yet. Check back soon.</p>';return}
+  list.innerHTML="";
+  for(const it of items){
+    const open=!!it.link,left=it.ads-it.watched;
+    const c=document.createElement("div");c.className="card"+(open?" open":"");
+    c.innerHTML=`<div class="top"><div class="ico">${open?"✅":icon(it.title)}</div><div class="info"><h2></h2><p>${open?"Unlocked":`${left} ${left==1?"ad":"ads"} to go`}</p></div></div><div class="bar">${Array.from({length:it.ads},(_,i)=>`<i class="${i<it.watched?"on":""}"></i>`).join("")}</div><button></button>`;
+    c.querySelector("h2").textContent=it.title;
+    const b=c.querySelector("button");
+    if(open){b.textContent="Open link";b.onclick=()=>/^https:\/\/t\.me\//.test(it.link)?tg.openTelegramLink(it.link):tg.openLink(it.link)}
+    else{b.textContent=it.watched?"Watch next ad":"Watch ad";b.onclick=()=>watch(it,b)}
+    list.appendChild(c);
+  }
+}
+async function watch(it,b){
+  if(!AdC){tg.showAlert("Ads are not ready yet. Please try again later.");return}
+  b.disabled=true;
+  try{
+    const res=await AdC.show();
+    if(res&&res.done){const r=await post("/api/ad",{item_id:it.id});if(r.status==429)tg.showAlert("Please wait a few seconds before the next ad.")}
+  }catch(e){tg.showAlert("No ad available right now. Try again in a moment.")}
+  load();
+}
+(async()=>{
+  try{const c=await (await fetch("/api/config")).json();if(c.block&&window.Adsgram)AdC=window.Adsgram.init({blockId:c.block})}catch(e){}
+  load();
+})();
+</script>
+</body>
+  </html>
