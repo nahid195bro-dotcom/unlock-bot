@@ -29,7 +29,7 @@ h1{font-size:30px;line-height:1.15;margin:0 0 8px;font-weight:750;letter-spacing
 .bar i{flex:1;height:6px;border-radius:3px;background:#2a3556;transition:background .3s}
 .bar i.on{background:var(--amber)}
 .card.open .bar i{background:var(--mint)}
-button{display:block;width:100%;border:0;border-radius:14px;padding:14px;font:650 16px inherit;font-family:inherit;
+button{display:block;width:100%;border:0;border-radius:14px;padding:14px;font-weight:650;font-size:16px;font-family:inherit;
 background:var(--amber);color:#2a1d00;cursor:pointer;transition:transform .12s,opacity .2s}
 button:active{transform:scale(.98)}
 button:disabled{opacity:.55}
@@ -50,43 +50,124 @@ button:focus-visible{outline:2px solid #fff;outline-offset:3px}
   <p class="foot">Ads keep this free for everyone.</p>
 </main>
 <script>
-const tg=window.Telegram.WebApp;tg.ready();tg.expand();
-try{tg.setHeaderColor("#0e1320");tg.setBackgroundColor("#0e1320")}catch(e){}
-const u=tg.initDataUnsafe&&tg.initDataUnsafe.user;
-if(u&&u.first_name)document.getElementById("hi").textContent="Hi, "+u.first_name;
-let AdC=null;
-const post=(url,b)=>fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({init:tg.initData,...b})});
-const icon=t=>{t=t.toLowerCase();return /video|setup|tutorial/.test(t)?"🎬":/give|gift|win/.test(t)?"🎁":/download|panel|file/.test(t)?"📥":"🔗"};
-async function load(){
-  let r;try{r=await post("/api/items",{})}catch(e){list.innerHTML='<p class="msg">No connection. Pull down to retry.</p>';return}
-  if(!r.ok){list.innerHTML='<p class="msg">Please open this app from the bot.</p>';return}
-  const items=await r.json();
-  if(!items.length){list.innerHTML='<p class="msg">Nothing here yet. Check back soon.</p>';return}
-  list.innerHTML="";
-  for(const it of items){
-    const open=!!it.link,left=it.ads-it.watched;
-    const c=document.createElement("div");c.className="card"+(open?" open":"");
-    c.innerHTML=`<div class="top"><div class="ico">${open?"✅":icon(it.title)}</div><div class="info"><h2></h2><p>${open?"Unlocked":`${left} ${left==1?"ad":"ads"} to go`}</p></div></div><div class="bar">${Array.from({length:it.ads},(_,i)=>`<i class="${i<it.watched?"on":""}"></i>`).join("")}</div><button></button>`;
-    c.querySelector("h2").textContent=it.title;
-    const b=c.querySelector("button");
-    if(open){b.textContent="Open link";b.onclick=()=>/^https:\/\/t\.me\//.test(it.link)?tg.openTelegramLink(it.link):tg.openLink(it.link)}
-    else{b.textContent=it.watched?"Watch next ad":"Watch ad";b.onclick=()=>watch(it,b)}
-    list.appendChild(c);
-  }
+const tg = window.Telegram.WebApp;
+tg.ready();
+tg.expand();
+try { tg.setHeaderColor("#0e1320"); tg.setBackgroundColor("#0e1320"); } catch (e) {}
+
+const u = tg.initDataUnsafe && tg.initDataUnsafe.user;
+if (u && u.first_name) document.getElementById("hi").textContent = "Hi, " + u.first_name;
+
+const list = document.getElementById("list");
+let AdC = null;
+
+function post(url, body) {
+  return fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(Object.assign({ init: tg.initData }, body || {}))
+  });
 }
-async function watch(it,b){
-  if(!AdC){tg.showAlert("Ads are not ready yet. Please try again later.");return}
-  b.disabled=true;
-  try{
-    const res=await AdC.show();
-    if(res&&res.done){const r=await post("/api/ad",{item_id:it.id});if(r.status==429)tg.showAlert("Please wait a few seconds before the next ad.")}
-  }catch(e){tg.showAlert("No ad available right now. Try again in a moment.")}
+
+function icon(t) {
+  t = t.toLowerCase();
+  if (/video|setup|tutorial/.test(t)) return "🎬";
+  if (/give|gift|win/.test(t)) return "🎁";
+  if (/download|panel|file/.test(t)) return "📥";
+  return "🔗";
+}
+
+function say(msg) {
+  try { tg.showAlert(msg); } catch (e) { alert(msg); }
+}
+
+async function load() {
+  let r;
+  try {
+    r = await post("/api/items");
+  } catch (e) {
+    list.innerHTML = '<p class="msg">No connection. Please try again.</p>';
+    return;
+  }
+  if (!r.ok) {
+    list.innerHTML = '<p class="msg">Please open this app from the bot.</p>';
+    return;
+  }
+  const items = await r.json();
+  if (!items.length) {
+    list.innerHTML = '<p class="msg">Nothing here yet. Check back soon.</p>';
+    return;
+  }
+  list.innerHTML = "";
+  items.forEach(function (it) {
+    const open = !!it.link;
+    const left = it.ads - it.watched;
+    const c = document.createElement("div");
+    c.className = "card" + (open ? " open" : "");
+
+    let dots = "";
+    for (let i = 0; i < it.ads; i++) dots += '<i class="' + (i < it.watched ? "on" : "") + '"></i>';
+
+    c.innerHTML =
+      '<div class="top"><div class="ico">' + (open ? "✅" : icon(it.title)) + '</div>' +
+      '<div class="info"><h2></h2><p>' +
+      (open ? "Unlocked" : left + (left === 1 ? " ad to go" : " ads to go")) +
+      '</p></div></div><div class="bar">' + dots + '</div><button></button>';
+
+    c.querySelector("h2").textContent = it.title;
+    const b = c.querySelector("button");
+
+    if (open) {
+      b.textContent = "Open link";
+      b.onclick = function () {
+        if (/^https:\/\/t\.me\//.test(it.link)) tg.openTelegramLink(it.link);
+        else tg.openLink(it.link);
+      };
+    } else {
+      b.textContent = it.watched ? "Watch next ad" : "Watch ad";
+      b.onclick = function () { watch(it, b); };
+    }
+    list.appendChild(c);
+  });
+}
+
+async function watch(it, b) {
+  if (!AdC) {
+    say("Ads are not ready yet. Please try again later.");
+    return;
+  }
+  b.disabled = true;
+  try {
+    const res = await AdC.show();
+    if (res && res.done) {
+      const r = await post("/api/ad", { item_id: it.id });
+      if (r.status === 429) {
+        say("Please wait a few seconds before the next ad.");
+      } else if (!r.ok) {
+        const t = await r.text();
+        say("Server error " + r.status + ": " + t.slice(0, 150));
+      } else {
+        const d = await r.json();
+        say("Ad counted: " + d.watched + "/" + it.ads);
+      }
+    } else {
+      say("Please watch the full ad to count it.");
+    }
+  } catch (e) {
+    let t = "";
+    try { t = JSON.stringify(e); } catch (x) { t = String(e); }
+    say("No ad available right now. " + t.slice(0, 120));
+  }
   load();
 }
-(async()=>{
-  try{const c=await (await fetch("/api/config")).json();if(c.block&&window.Adsgram)AdC=window.Adsgram.init({blockId:c.block})}catch(e){}
+
+(async function () {
+  try {
+    const c = await (await fetch("/api/config")).json();
+    if (c.block && window.Adsgram) AdC = window.Adsgram.init({ blockId: c.block });
+  } catch (e) {}
   load();
 })();
 </script>
 </body>
-  </html>
+</html>
