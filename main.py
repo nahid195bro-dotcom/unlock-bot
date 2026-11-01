@@ -16,9 +16,12 @@ app = FastAPI()
 last_ad = {}
 
 
-async def sb(method, path, **kw):
+async def sb(method, path, headers=None, **kw):
     async with httpx.AsyncClient(timeout=20) as c:
-        r = await c.request(method, f"{SB_URL}/rest/v1/{path}", headers=H, **kw)
+        r = await c.request(method, f"{SB_URL}/rest/v1/{path}", headers=headers or H, **kw)
+        if r.status_code >= 400:
+            print("SUPABASE ERROR", r.status_code, r.text)
+            return []
         return r.json() if r.text else []
 
 
@@ -85,7 +88,7 @@ async def ad(req: Request):
     if not item:
         raise HTTPException(404)
     cur = await sb("GET", f"progress?user_id=eq.{uid}&item_id=eq.{iid}&select=watched")
-    w = (cur[0]["watched"] if cur else 0)
+    w = cur[0]["watched"] if cur else 0
     if w < item[0]["ads"]:
         w += 1
     await sb("POST", "progress?on_conflict=user_id,item_id",
